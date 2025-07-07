@@ -1,0 +1,14 @@
+{
+  "notification_channel": "1391779625423863838",
+  "command_channel": "1391779625423863838",
+  "voice_channels": {
+    "1391757507256516678": {
+      "empty_name": "ห้องว่าง",
+      "occupied_name": "ห้องไม่ว่าง"
+    },
+    "1391673586346885180": {
+      "empty_name": "🔴Live offline",
+      "occupied_name": "🟢Live online"
+    }
+  }
+}
