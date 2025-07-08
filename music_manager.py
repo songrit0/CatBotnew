@@ -8,6 +8,7 @@ import asyncio
 import os
 from typing import Optional, Dict, Any, List
 import re
+from music_fallback import MusicFallback
 
 class Song:
     """คลาสสำหรับจัดเก็บข้อมูลเพลง"""
@@ -82,6 +83,25 @@ class YTDLSource(discord.PCMVolumeTransformer):
         'no_warnings': True,
         'default_search': 'auto',
         'source_address': '0.0.0.0',
+        'extractaudio': True,
+        'audioformat': 'mp3',
+        'audioquality': '192K',
+        # เพิ่ม User-Agent เพื่อหลีกเลี่ยงการตรวจจับ bot
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        # เพิ่ม headers เพื่อแก้ปัญหา bot detection
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Accept-Encoding': 'gzip,deflate',
+            'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+            'Keep-Alive': '115',
+            'Connection': 'keep-alive',
+        },
+        # เพิ่มการจำลอง browser behavior
+        'cookiefile': None,
+        'age_limit': None,
+        'skip_download': False,
     }
     
     FFMPEG_OPTIONS = {
@@ -105,19 +125,38 @@ class YTDLSource(discord.PCMVolumeTransformer):
         """สร้างแหล่งข้อมูลเพลง"""
         loop = loop or asyncio.get_event_loop()
         
-        partial = lambda: cls.ytdl.extract_info(search, download=not stream)
-        data = await loop.run_in_executor(None, partial)
+        # สร้าง ytdl instance ใหม่พร้อม options ที่ปรับปรุง
+        ytdl_opts = cls.YTDL_OPTIONS.copy()
+        ytdl_opts['quiet'] = True
+        ytdl_opts['no_warnings'] = True
         
-        if data is None:
-            raise Exception(f'ไม่สามารถหาข้อมูลสำหรับ: {search}')
-            
-        if 'entries' in data:
-            # ถ้าเป็น playlist ให้เอาเพลงแรก
-            data = data['entries'][0]
-            
-        filename = data['url'] if stream else cls.ytdl.prepare_filename(data)
+        ytdl = yt_dlp.YoutubeDL(ytdl_opts)
         
-        return cls(discord.FFmpegPCMAudio(filename, **cls.FFMPEG_OPTIONS), data=data)
+        try:
+            partial = lambda: ytdl.extract_info(search, download=not stream)
+            data = await loop.run_in_executor(None, partial)
+            
+            if data is None:
+                raise Exception(f'ไม่สามารถหาข้อมูลสำหรับ: {search}')
+                
+            if 'entries' in data:
+                # ถ้าเป็น playlist ให้เอาเพลงแรก
+                data = data['entries'][0]
+                
+            filename = data['url'] if stream else ytdl.prepare_filename(data)
+            
+            return cls(discord.FFmpegPCMAudio(filename, **cls.FFMPEG_OPTIONS), data=data)
+            
+        except yt_dlp.DownloadError as e:
+            error_msg = str(e)
+            if "Sign in to confirm you're not a bot" in error_msg:
+                raise Exception("❌ YouTube ขอให้ยืนยันตัวตน กรุณาลองอีกครั้งในภายหลัง หรือใช้ลิงก์เพลงจากแหล่งอื่น")
+            elif "Video unavailable" in error_msg:
+                raise Exception("❌ วิดีโอนี้ไม่สามารถเข้าถึงได้ กรุณาลองเพลงอื่น")
+            else:
+                raise Exception(f"❌ ไม่สามารถโหลดเพลงได้: {error_msg}")
+        except Exception as e:
+            raise Exception(f"❌ เกิดข้อผิดพลาดในการประมวลผลเพลง: {str(e)}")
 
 class MusicManager:
     """คลาสหลักสำหรับจัดการระบบเพลง"""
@@ -195,31 +234,69 @@ class MusicManager:
     async def add_to_queue(self, guild_id: int, search: str, requester: discord.Member) -> Song:
         """เพิ่มเพลงในคิว"""
         try:
-            # ค้นหาข้อมูลเพลง
-            loop = asyncio.get_event_loop()
-            partial = lambda: YTDLSource.ytdl.extract_info(search, download=False)
-            data = await loop.run_in_executor(None, partial)
+            # ลองใช้ระบบปกติก่อน
+            data = await self._extract_info_with_fallback(search)
             
-            if data is None:
-                raise Exception(f'ไม่สามารถหาข้อมูลสำหรับ: {search}')
-                
-            if 'entries' in data:
-                data = data['entries'][0]
+            if not data:
+                raise Exception('ไม่สามารถหาข้อมูลเพลงได้')
                 
             # สร้าง Song object
             duration = self._format_duration(data.get('duration', 0))
             song = Song(
-                url=data['webpage_url'],
-                title=data['title'],
+                url=data.get('webpage_url', data.get('url', search)),
+                title=data.get('title', 'ไม่ทราบชื่อ'),
                 duration=duration,
                 requester=requester
             )
             
-            # เพิ่มในคิว
+            # เพิ่มเพลงในคิว
             queue = self.get_music_queue(guild_id)
             queue.add(song)
             
             return song
+            
+        except yt_dlp.DownloadError as e:
+            error_msg = str(e)
+            if "Sign in to confirm you're not a bot" in error_msg:
+                raise Exception("❌ YouTube ขอให้ยืนยันตัวตน กรุณาลองค้นหาด้วยชื่อเพลงแทนการใช้ลิงก์")
+            elif "Video unavailable" in error_msg:
+                raise Exception("❌ วิดีโอนี้ไม่สามารถเข้าถึงได้ กรุณาลองเพลงอื่น")
+            elif "Private video" in error_msg:
+                raise Exception("❌ วิดีโอนี้เป็นแบบส่วนตัว ไม่สามารถเล่นได้")
+            else:
+                raise Exception(f"❌ ไม่สามารถโหลดเพลงได้: กรุณาลองใหม่อีกครั้ง")
+        except Exception as e:
+            raise Exception(f"❌ เกิดข้อผิดพลาด: {str(e)}")
+    
+    async def _extract_info_with_fallback(self, search: str) -> Optional[Dict[str, Any]]:
+        """ดึงข้อมูลเพลงพร้อม fallback"""
+        # ลองใช้ระบบปกติก่อน
+        try:
+            ytdl_opts = YTDLSource.YTDL_OPTIONS.copy()
+            ytdl_opts['quiet'] = True
+            ytdl_opts['no_warnings'] = True
+            
+            ytdl = yt_dlp.YoutubeDL(ytdl_opts)
+            
+            loop = asyncio.get_event_loop()
+            partial = lambda: ytdl.extract_info(search, download=False)
+            data = await loop.run_in_executor(None, partial)
+            
+            if data:
+                if 'entries' in data:
+                    return data['entries'][0] if data['entries'] else None
+                return data
+                
+        except Exception as e:
+            print(f"Primary extraction failed: {e}")
+            
+        # ใช้ fallback system
+        print("Using fallback extraction method...")
+        try:
+            return await MusicFallback.search_with_fallback(search)
+        except Exception as e:
+            print(f"Fallback extraction failed: {e}")
+            return None
             
         except Exception as e:
             raise Exception(f'ไม่สามารถเพิ่มเพลงได้: {e}')

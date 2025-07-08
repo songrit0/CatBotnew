@@ -7,8 +7,15 @@
       "occupied_name": "ห้องไม่ว่าง"
     },
     "1391673586346885180": {
-      "empty_name": "🔴Live offline",
-      "occupied_name": "🟢Live online"
+      "empty_name": "Live offline",
+      "occupied_name": "Live online"
     }
+  },
+  "music_settings": {
+    "use_fallback": true,
+    "max_retries": 3,
+    "retry_delay": 2,
+    "default_volume": 0.5,
+    "max_queue_size": 50
   }
 }

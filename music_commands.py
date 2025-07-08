@@ -208,7 +208,30 @@ class MusicCommands(commands.Cog):
             await search_msg.edit(content=None, embed=embed, view=view)
             
         except Exception as e:
-            await search_msg.edit(content=f"❌ เกิดข้อผิดพลาด: {e}")
+            error_message = str(e)
+            
+            # สร้างข้อความช่วยเหลือตามประเภทของข้อผิดพลาด
+            if "Sign in to confirm you're not a bot" in error_message or "YouTube ขอให้ยืนยันตัวตน" in error_message:
+                help_embed = discord.Embed(
+                    title="🚫 YouTube ขอให้ยืนยันตัวตน",
+                    description="วิธีแก้ไข:",
+                    color=discord.Color.orange()
+                )
+                help_embed.add_field(
+                    name="💡 แนะนำ", 
+                    value="• ใช้ชื่อเพลงแทนลิงก์\n• ลองค้นหาด้วยคำอื่น\n• รอสักครู่แล้วลองใหม่", 
+                    inline=False
+                )
+                help_embed.add_field(
+                    name="✅ ตัวอย่าง", 
+                    value="`!play shape of you ed sheeran`\n`!play เพลงไทยเพราะๆ`", 
+                    inline=False
+                )
+                help_embed.set_footer(text="ดู YOUTUBE_FIX.md สำหรับข้อมูลเพิ่มเติม")
+                
+                await search_msg.edit(content=None, embed=help_embed)
+            else:
+                await search_msg.edit(content=f"❌ เกิดข้อผิดพลาด: {error_message}\n\n💡 **คำแนะนำ:** ลองใช้ชื่อเพลงแทนลิงก์")
             
     @commands.command(name='skip', aliases=['s'])
     async def skip(self, ctx):
@@ -412,6 +435,48 @@ class MusicCommands(commands.Cog):
         view = MusicControlView(self.music_manager, ctx.guild.id)
         
         await ctx.send(embed=embed, view=view)
+        
+    @commands.command(name='musichelp', aliases=['mhelp'])
+    async def music_help(self, ctx):
+        """แสดงคำแนะนำเมื่อเจอปัญหาเพลง"""
+        embed = discord.Embed(
+            title="🎵 วิธีแก้ปัญหาเพลง",
+            description="หากเจอปัญหาในการเล่นเพลง ลองวิธีเหล่านี้:",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="🔍 วิธีค้นหาที่แนะนำ",
+            value="""
+            ✅ `!play shape of you ed sheeran`
+            ✅ `!play เพลงไทยเพราะๆ`
+            ✅ `!play official audio [ชื่อเพลง]`
+            
+            ❌ หลีกเลี่ยงลิงก์ YouTube โดยตรง
+            """,
+            inline=False
+        )
+        
+        embed.add_field(
+            name="⚠️ หากเจอข้อผิดพลาด",
+            value="""
+            • รอ 1-2 นาทีแล้วลองใหม่
+            • เปลี่ยนคำค้นหา
+            • ใช้ชื่อเพลงแทนลิงก์
+            • ลอง `!play test` เพื่อทดสอบ
+            """,
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎯 คำสั่งที่มี",
+            value="`!play` • `!skip` • `!queue` • `!stop` • `!music`",
+            inline=False
+        )
+        
+        embed.set_footer(text="หากยังมีปัญหา โปรดติดต่อ Admin")
+        
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     """ตั้งค่า Cog"""
