@@ -6,6 +6,7 @@ import discord
 from discord.ext import commands
 import os
 import asyncio
+from aiohttp import web
 from dotenv import load_dotenv
 
 # Import modules
@@ -48,6 +49,26 @@ class CatBot(commands.Bot):
         
         print("✅ ตั้งค่าระบบเสร็จสิ้น")
 
+async def create_web_server():
+    """สร้าง web server สำหรับ Render deployment"""
+    async def health_check(request):
+        return web.Response(text="Bot is running!")
+    
+    async def status(request):
+        return web.json_response({
+            "status": "online",
+            "bot": "CatBot",
+            "version": "1.0.0"
+        })
+    
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    app.router.add_get('/health', health_check)
+    app.router.add_get('/status', status)
+    
+    port = int(os.environ.get('PORT', 8000))
+    return app, port
+
 async def main():
     """ฟังก์ชันหลักสำหรับเริ่มต้นบอท"""
     # โหลดตัวแปรจาก .env
@@ -63,9 +84,22 @@ async def main():
     # สร้าง bot instance
     bot = CatBot()
     
-    print("🚀 กำลังเริ่มต้นบอท...")
+    # สร้าง web server สำหรับ Render
+    app, port = await create_web_server()
+    
+    print("🚀 กำลังเริ่มต้นบอทและ web server...")
+    print(f"🌐 Web server จะทำงานที่ port {port}")
     
     try:
+        # เริ่ม web server และ bot พร้อมกัน
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        
+        # เริ่ม web server
+        await site.start()
+        print(f"✅ Web server เริ่มทำงานแล้วที่ port {port}")
+        
         # เริ่มต้นบอท
         async with bot:
             await bot.start(token)

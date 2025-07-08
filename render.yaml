@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: catbot-discord
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    plan: free
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
