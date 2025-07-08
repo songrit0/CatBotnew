@@ -4,6 +4,6 @@ pip install -r requirements.txt
 
 echo.
 echo กำลังเริ่มบอท Discord...
-python bot.py
+python main.py
 
 pause
