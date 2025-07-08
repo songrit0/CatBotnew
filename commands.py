@@ -18,8 +18,8 @@ class BotCommands(commands.Cog):
         """ตรวจสอบว่าคำสั่งถูกใช้ในห้องที่ถูกต้อง"""
         return is_special_channel(ctx.channel.id)
     
-    @commands.command(name='queue')
-    async def show_queue(self, ctx):
+    @commands.command(name='vqueue')
+    async def show_voice_queue(self, ctx):
         """แสดงคิวการอัพเดตห้องเสียง"""
         if not self.is_special_channel_check(ctx):
             await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในห้องที่กำหนดเท่านั้น")
@@ -527,6 +527,103 @@ class BotCommands(commands.Cog):
         view = VoiceChannelManagerView(ctx.author.id, current_config)
         await ctx.send(embed=embed, view=view)
     
+    @commands.command(name='music', help='เปิดแผงควบคุมเพลง')
+    async def music_panel(self, ctx):
+        """เปิดแผงควบคุมเพลง"""
+        from music_manager import MusicManager
+        from ui_components import QuickMusicView, MusicPlayerView
+        
+        # สร้าง MusicManager ถ้ายังไม่มี
+        if not hasattr(self.bot, 'music_manager'):
+            self.bot.music_manager = MusicManager(self.bot)
+        
+        embed = discord.Embed(
+            title="🎵 แผงควบคุมเพลง",
+            description="เลือกการดำเนินการที่ต้องการ:",
+            color=discord.Color.blue()
+        )
+        
+        # ตรวจสอบสถานะเพลงปัจจุบัน
+        queue = self.bot.music_manager.get_music_queue(ctx.guild.id)
+        if queue.current_song:
+            embed.add_field(
+                name="🎵 กำลังเล่น",
+                value=f"**{queue.current_song.title}**\n"
+                      f"ขอโดย: {queue.current_song.requester.mention}",
+                inline=False
+            )
+        
+        if queue.queue:
+            embed.add_field(
+                name="📋 คิวถัดไป",
+                value=f"{len(queue.queue)} เพลงในคิว",
+                inline=True
+            )
+        
+        view = QuickMusicView(self.bot.music_manager, ctx.guild.id)
+        await ctx.send(embed=embed, view=view)
+    
+    @commands.command(name='musiccontrol', help='แผงควบคุมเพลงแบบละเอียด')
+    async def music_control_panel(self, ctx):
+        """แผงควบคุมเพลงแบบละเอียด"""
+        from music_manager import MusicManager
+        from ui_components import MusicPlayerView
+        
+        # สร้าง MusicManager ถ้ายังไม่มี
+        if not hasattr(self.bot, 'music_manager'):
+            self.bot.music_manager = MusicManager(self.bot)
+        
+        embed = discord.Embed(
+            title="🎛️ แผงควบคุมเพลงแบบละเอียด",
+            description="ใช้ปุ่มด้านล่างเพื่อควบคุมเพลง",
+            color=discord.Color.blue()
+        )
+        
+        # แสดงสถานะเพลงปัจจุบัน
+        queue = self.bot.music_manager.get_music_queue(ctx.guild.id)
+        voice_client = self.bot.music_manager.get_voice_client(ctx.guild.id)
+        
+        if queue.current_song:
+            status = "⏸️ หยุดชั่วคราว" if voice_client and voice_client.is_paused() else "▶️ กำลังเล่น"
+            embed.add_field(
+                name="🎵 เพลงปัจจุบัน",
+                value=f"{status}\n**{queue.current_song.title}**\n"
+                      f"ระยะเวลา: {queue.current_song.duration}\n"
+                      f"ขอโดย: {queue.current_song.requester.mention}",
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="🎵 สถานะ",
+                value="ไม่มีเพลงที่เล่นอยู่",
+                inline=False
+            )
+        
+        # แสดงคิว
+        if queue.queue:
+            embed.add_field(
+                name="📋 คิวถัดไป",
+                value=f"{len(queue.queue)} เพลงในคิว",
+                inline=True
+            )
+        
+        # แสดงสถานะลูป
+        loop_status = []
+        if queue.loop:
+            loop_status.append("🔂 ลูปเพลงปัจจุบัน")
+        if queue.loop_queue:
+            loop_status.append("🔁 ลูปคิว")
+        
+        if loop_status:
+            embed.add_field(
+                name="🔄 สถานะลูป",
+                value="\n".join(loop_status),
+                inline=True
+            )
+        
+        view = MusicPlayerView(self.bot.music_manager, ctx.guild.id)
+        await ctx.send(embed=embed, view=view)
+
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         """จัดการข้อผิดพลาดของคำสั่ง"""

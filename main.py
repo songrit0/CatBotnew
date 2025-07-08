@@ -14,6 +14,7 @@ from voice_manager import VoiceChannelManager
 from queue_processor import QueueProcessor
 from commands import setup as setup_commands
 from events import setup as setup_events
+from music_commands import setup as setup_music_commands
 
 class CatBot(commands.Bot):
     """คลาสหลักของบอท"""
@@ -43,6 +44,7 @@ class CatBot(commands.Bot):
         # โหลด Cogs
         await setup_commands(self, self.voice_manager)
         await setup_events(self, self.voice_manager, self.queue_processor)
+        await setup_music_commands(self)  # เพิ่มระบบเพลง
         
         print("✅ ตั้งค่าระบบเสร็จสิ้น")
 

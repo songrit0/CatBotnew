@@ -11,11 +11,14 @@ CatBotnew/
 ├── commands.py          # คำสั่งต่างๆ ของบอท
 ├── events.py            # จัดการ Event ต่างๆ ของบอท
 ├── ui_components.py     # คอมโพเนนต์ UI สำหรับ Discord
+├── music_manager.py     # ระบบจัดการเพลงจาก YouTube
+├── music_commands.py    # คำสั่งเพลงและปุ่มควบคุม
 ├── config.json          # ไฟล์การตั้งค่า
 ├── requirements.txt     # รายการ package ที่ต้องติดตั้ง
 ├── .env.example         # ตัวอย่างไฟล์ environment variables
 ├── .env                 # ไฟล์ environment variables (ไม่รวมใน git)
 ├── start.bat           # ไฟล์สำหรับเริ่มบอทใน Windows
+├── MUSIC_GUIDE.md      # คู่มือระบบเพลง
 └── README.md           # ไฟล์นี้
 ```
 
@@ -52,6 +55,16 @@ CatBotnew/
 ### ui_components.py
 - UI Components สำหรับ Discord (Views, Modals, Buttons)
 - ระบบจัดการ Voice Channels ผ่าน UI
+
+### music_manager.py
+- ระบบจัดการเพลงจาก YouTube
+- คลาส Song, MusicQueue และ YTDLSource
+- การจัดการ voice clients และคิวเพลง
+
+### music_commands.py  
+- คำสั่งเพลงทั้งหมด (!play, !skip, !queue, etc.)
+- Views สำหรับควบคุมเพลงด้วยปุ่ม
+- Modal สำหรับเพิ่มเพลง
 
 ## 🚀 วิธีการใช้งาน
 
@@ -104,6 +117,16 @@ start.bat
 ### คำสั่งสำหรับ Administrator
 - `!forcenow <channel_id>` - บังคับอัพเดตทันที
 - `!update` - อัพเดตห้องเสียงทั้งหมด
+
+### คำสั่งเพลง 🎵
+- `!play <ชื่อเพลง/URL>` - เล่นเพลงจาก YouTube
+- `!skip` - ข้ามเพลงปัจจุบัน
+- `!stop` - หยุดเพลงและล้างคิว
+- `!queue` - ดูคิวเพลง
+- `!music` - เปิดแผงควบคุมเพลง
+- `!musiccontrol` - แผงควบคุมเพลงแบบละเอียด
+
+**📖 ดูคู่มือเพิ่มเติมใน [MUSIC_GUIDE.md](MUSIC_GUIDE.md)**
 
 ## 🔧 ข้อดีของการแยกไฟล์
 
