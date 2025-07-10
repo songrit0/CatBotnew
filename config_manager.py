@@ -143,6 +143,45 @@ def refresh_config_cache():
     sheets_manager.clear_cache()
     print("🔄 รีเฟรช cache การตั้งค่าจาก Google Sheets")
 
+def backup_config_to_sheets():
+    """สำรองข้อมูล config ปัจจุบันลง Google Sheets"""
+    try:
+        config = load_config()
+        success = save_config(config)
+        if success:
+            print("✅ สำรองข้อมูล config ลง Google Sheets สำเร็จ")
+        else:
+            print("❌ ไม่สามารถสำรองข้อมูล config ได้")
+        return success
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการสำรองข้อมูล: {e}")
+        return False
+
+def restore_config_from_sheets():
+    """กู้คืนข้อมูล config จาก Google Sheets"""
+    try:
+        config = sheets_manager.get_config_from_sheets()
+        print("✅ กู้คืนข้อมูล config จาก Google Sheets สำเร็จ")
+        return True
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการกู้คืนข้อมูล: {e}")
+        return False
+
+def sync_config_with_sheets():
+    """ซิงค์ข้อมูล config ระหว่าง local และ Google Sheets"""
+    try:
+        # ล้าง cache ก่อน
+        refresh_config_cache()
+        
+        # โหลดข้อมูลจาก Google Sheets
+        config = load_config()
+        
+        print("✅ ซิงค์ข้อมูล config กับ Google Sheets สำเร็จ")
+        return True
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการซิงค์ข้อมูล: {e}")
+        return False
+
 def migrate_from_json():
     """ย้ายข้อมูลจาก config.json ไปยัง Google Sheets (ใช้ครั้งเดียว)"""
     try:

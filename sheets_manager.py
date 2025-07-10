@@ -7,6 +7,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from dotenv import load_dotenv
+import time
+import socket
 
 # โหลด environment variables
 load_dotenv()
@@ -19,6 +21,10 @@ class SheetsManager:
         self.worksheet = None
         self.config_cache = None  # Cache สำหรับ config
         self.cache_timestamp = None
+        # ตั้งค่า timeout และ retry
+        self.max_retries = 3
+        self.retry_delay = 2
+        self.api_timeout = 60
         self._initialize()
     
     def _get_credentials_from_env(self):
@@ -65,7 +71,7 @@ class SheetsManager:
                 scopes=scope
             )
             
-            # สร้าง client
+            # สร้าง client พร้อมตั้งค่า timeout เพิ่มขึ้น
             self.client = gspread.authorize(creds)
             
             # เปิด spreadsheet
@@ -128,8 +134,8 @@ class SheetsManager:
                 (current_time - self.cache_timestamp).seconds < 10):
                 return self.config_cache
             
-            # อ่านข้อมูลจาก Google Sheets
-            all_records = self.worksheet.get_all_records()
+            # อ่านข้อมูลจาก Google Sheets พร้อม retry mechanism
+            all_records = self._get_records_with_retry()
             config = {}
             
             for record in all_records:
@@ -230,8 +236,8 @@ class SheetsManager:
             self.config_cache = None
             self.cache_timestamp = None
             
-            # ค้นหาแถวที่มี key นี้
-            all_records = self.worksheet.get_all_records()
+            # ค้นหาแถวที่มี key นี้ (ใช้ retry mechanism)
+            all_records = self._get_records_with_retry()
             row_index = None
             
             for i, record in enumerate(all_records):
@@ -242,17 +248,16 @@ class SheetsManager:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
             if row_index:
-                # อัปเดตแถวที่มีอยู่
-                self.worksheet.update(f'B{row_index}:D{row_index}', [[value, data_type, timestamp]])
+                # อัปเดตแถวที่มีอยู่ (ใช้ retry mechanism)
+                self._update_with_retry(f'B{row_index}:D{row_index}', [[value, data_type, timestamp]])
             else:
-                # เพิ่มแถวใหม่
+                # เพิ่มแถวใหม่ (ใช้ retry mechanism)
                 new_row = [key, value, data_type, timestamp, f'Auto-created for {key}']
-                self.worksheet.append_row(new_row)
+                self._append_row_with_retry(new_row)
             
             print(f"✅ อัปเดต {key} ใน Google Sheets สำเร็จ")
             
             # รอให้ Google Sheets update แล้วค่อยใช้งาน
-            import time
             time.sleep(1)
             
             return True
@@ -308,6 +313,127 @@ class SheetsManager:
         """ล้าง cache เพื่อบังคับให้อ่านข้อมูลใหม่"""
         self.config_cache = None
         self.cache_timestamp = None
+
+    def _get_records_with_retry(self, max_retries=None):
+        """อ่านข้อมูลจาก Google Sheets พร้อม retry mechanism สำหรับการโหลดช้า"""
+        if max_retries is None:
+            max_retries = self.max_retries
+            
+        for attempt in range(max_retries):
+            try:
+                print(f"🔄 กำลังโหลดข้อมูลจาก Google Sheets (ครั้งที่ {attempt + 1}/{max_retries})...")
+                
+                # ตั้งค่า socket timeout เพื่อป้องกันการค้าง
+                old_timeout = socket.getdefaulttimeout()
+                socket.setdefaulttimeout(self.api_timeout)
+                
+                try:
+                    all_records = self.worksheet.get_all_records()
+                    print("✅ โหลดข้อมูลจาก Google Sheets สำเร็จ")
+                    return all_records
+                finally:
+                    # คืนค่า timeout เดิม
+                    socket.setdefaulttimeout(old_timeout)
+                    
+            except (socket.timeout, TimeoutError) as e:
+                print(f"⏰ Timeout ในการโหลดข้อมูล (ครั้งที่ {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ รอ {self.retry_delay} วินาทีก่อนลองใหม่...")
+                    time.sleep(self.retry_delay)
+                else:
+                    print("❌ โหลดข้อมูลไม่สำเร็จหลังจากลองหลายครั้ง")
+                    raise
+                    
+            except Exception as e:
+                print(f"❌ เกิดข้อผิดพลาดในการโหลดข้อมูล (ครั้งที่ {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ รอ {self.retry_delay} วินาทีก่อนลองใหม่...")
+                    time.sleep(self.retry_delay)
+                else:
+                    print("❌ โหลดข้อมูลไม่สำเร็จหลังจากลองหลายครั้ง")
+                    raise
+        
+        return []
+
+    def _update_with_retry(self, cell_range, values, max_retries=None):
+        """อัปเดตข้อมูลใน Google Sheets พร้อม retry mechanism"""
+        if max_retries is None:
+            max_retries = self.max_retries
+            
+        for attempt in range(max_retries):
+            try:
+                print(f"🔄 กำลังอัปเดตข้อมูลใน Google Sheets (ครั้งที่ {attempt + 1}/{max_retries})...")
+                
+                # ตั้งค่า socket timeout
+                old_timeout = socket.getdefaulttimeout()
+                socket.setdefaulttimeout(self.api_timeout)
+                
+                try:
+                    result = self.worksheet.update(cell_range, values)
+                    print("✅ อัปเดตข้อมูลสำเร็จ")
+                    return result
+                finally:
+                    socket.setdefaulttimeout(old_timeout)
+                    
+            except (socket.timeout, TimeoutError) as e:
+                print(f"⏰ Timeout ในการอัปเดตข้อมูล (ครั้งที่ {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ รอ {self.retry_delay} วินาทีก่อนลองใหม่...")
+                    time.sleep(self.retry_delay)
+                else:
+                    print("❌ อัปเดตข้อมูลไม่สำเร็จหลังจากลองหลายครั้ง")
+                    raise
+                    
+            except Exception as e:
+                print(f"❌ เกิดข้อผิดพลาดในการอัปเดตข้อมูล (ครั้งที่ {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ รอ {self.retry_delay} วินาทีก่อนลองใหม่...")
+                    time.sleep(self.retry_delay)
+                else:
+                    print("❌ อัปเดตข้อมูลไม่สำเร็จหลังจากลองหลายครั้ง")
+                    raise
+        
+        return None
+
+    def _append_row_with_retry(self, values, max_retries=None):
+        """เพิ่มแถวใหม่ใน Google Sheets พร้อม retry mechanism"""
+        if max_retries is None:
+            max_retries = self.max_retries
+            
+        for attempt in range(max_retries):
+            try:
+                print(f"🔄 กำลังเพิ่มแถวใหม่ใน Google Sheets (ครั้งที่ {attempt + 1}/{max_retries})...")
+                
+                # ตั้งค่า socket timeout
+                old_timeout = socket.getdefaulttimeout()
+                socket.setdefaulttimeout(self.api_timeout)
+                
+                try:
+                    result = self.worksheet.append_row(values)
+                    print("✅ เพิ่มแถวใหม่สำเร็จ")
+                    return result
+                finally:
+                    socket.setdefaulttimeout(old_timeout)
+                    
+            except (socket.timeout, TimeoutError) as e:
+                print(f"⏰ Timeout ในการเพิ่มแถวใหม่ (ครั้งที่ {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ รอ {self.retry_delay} วินาทีก่อนลองใหม่...")
+                    time.sleep(self.retry_delay)
+                else:
+                    print("❌ เพิ่มแถวใหม่ไม่สำเร็จหลังจากลองหลายครั้ง")
+                    raise
+                    
+            except Exception as e:
+                print(f"❌ เกิดข้อผิดพลาดในการเพิ่มแถวใหม่ (ครั้งที่ {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ รอ {self.retry_delay} วินาทีก่อนลองใหม่...")
+                    time.sleep(self.retry_delay)
+                else:
+                    print("❌ เพิ่มแถวใหม่ไม่สำเร็จหลังจากลองหลายครั้ง")
+                    raise
+        
+        return None
 
 # สร้าง instance ของ SheetsManager
 sheets_manager = SheetsManager()
