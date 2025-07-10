@@ -76,9 +76,12 @@ class SheetsManager:
         # เพิ่มข้อมูลเริ่มต้น
         default_data = [
             ['voice_channels', '{}', 'json', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Voice channel configurations'],
-            ['command_channel', '', 'string', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Command channel ID'],
-            ['notification_channel', '', 'string', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Notification channel ID'],
-            ['music_settings', '{"use_fallback": true, "max_retries": 3, "retry_delay": 2, "default_volume": 0.5, "max_queue_size": 50}', 'json', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Music player settings']
+            ['command_channels', '[]', 'json', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Command channel IDs (multiple)'],
+            ['notification_channels', '[]', 'json', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Notification channel IDs (multiple)'],
+            ['music_settings', '{"use_fallback": true, "max_retries": 3, "retry_delay": 2, "default_volume": 0.5, "max_queue_size": 50}', 'json', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Music player settings'],
+            # รองรับรูปแบบเก่าเพื่อความเข้ากันได้
+            ['command_channel', '', 'string', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Command channel ID (legacy)'],
+            ['notification_channel', '', 'string', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Notification channel ID (legacy)']
         ]
         
         for row in default_data:
@@ -160,6 +163,9 @@ class SheetsManager:
         """ส่งค่า config เริ่มต้น"""
         return {
             "voice_channels": {},
+            "command_channels": [],
+            "notification_channels": [],
+            # รองรับรูปแบบเก่าเพื่อความเข้ากันได้
             "command_channel": None,
             "notification_channel": None,
             "music_settings": {

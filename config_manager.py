@@ -43,8 +43,8 @@ def create_default_config():
     """สร้างการตั้งค่าเริ่มต้นใน Google Sheets"""
     default_config = {
         "voice_channels": {},
-        "command_channel": None,
-        "notification_channel": None,
+        "command_channels": [],
+        "notification_channels": [],
         "music_settings": {
             "use_fallback": True,
             "max_retries": 3,
@@ -76,18 +76,66 @@ def remove_voice_channel_config(channel_id):
 
 def update_command_channel(channel_id):
     """อัปเดต command channel ใน Google Sheets"""
-    return sheets_manager.update_config_value('command_channel', str(channel_id) if channel_id else None)
+    return sheets_manager.update_config_value('command_channels', str(channel_id) if channel_id else None)
 
 def update_notification_channel(channel_id):
     """อัปเดต notification channel ใน Google Sheets"""
-    return sheets_manager.update_config_value('notification_channel', str(channel_id) if channel_id else None)
+    return sheets_manager.update_config_value('notification_channels', str(channel_id) if channel_id else None)
+
+def add_command_channel(channel_id):
+    """เพิ่ม command channel ลงใน list"""
+    config = load_config()
+    command_channels = config.get("command_channels", [])
+    
+    if str(channel_id) not in command_channels:
+        command_channels.append(str(channel_id))
+        return sheets_manager.update_config_value('command_channels', command_channels)
+    return True
+
+def remove_command_channel(channel_id):
+    """ลบ command channel จาก list"""
+    config = load_config()
+    command_channels = config.get("command_channels", [])
+    
+    if str(channel_id) in command_channels:
+        command_channels.remove(str(channel_id))
+        return sheets_manager.update_config_value('command_channels', command_channels)
+    return True
+
+def add_notification_channel(channel_id):
+    """เพิ่ม notification channel ลงใน list"""
+    config = load_config()
+    notification_channels = config.get("notification_channels", [])
+    
+    if str(channel_id) not in notification_channels:
+        notification_channels.append(str(channel_id))
+        return sheets_manager.update_config_value('notification_channels', notification_channels)
+    return True
+
+def remove_notification_channel(channel_id):
+    """ลบ notification channel จาก list"""
+    config = load_config()
+    notification_channels = config.get("notification_channels", [])
+    
+    if str(channel_id) in notification_channels:
+        notification_channels.remove(str(channel_id))
+        return sheets_manager.update_config_value('notification_channels', notification_channels)
+    return True
 
 def is_special_channel(channel_id):
     """ตรวจสอบว่าเป็นห้องพิเศษหรือไม่"""
     config = load_config()
+    command_channels = config.get("command_channels", [])
+    
+    # รองรับทั้งรูปแบบเก่า (single channel) และใหม่ (multiple channels)
+    if command_channels:
+        return str(channel_id) in command_channels
+    
+    # รองรับรูปแบบเก่าเพื่อความเข้ากันได้
     command_channel_id = config.get("command_channel")
     if command_channel_id:
         return channel_id == int(command_channel_id)
+    
     return False
 
 def refresh_config_cache():

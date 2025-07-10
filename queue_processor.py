@@ -102,10 +102,18 @@ class QueueProcessor:
             print(f"❌ ไม่สามารถส่งข้อความแจ้งเตือนได้: {e}")
     
     async def _get_notification_channel(self, guild):
-        """หาห้องแชทสำหรับส่งการแจ้งเตือน"""
+        """หาห้องแชทสำหรับส่งการแจ้งเตือน (รองรับหลายห้อง)"""
         current_config = load_config()
         
-        # ใช้ห้องแชทที่ระบุใน config หรือห้องแรกที่บอทเข้าถึงได้
+        # ลองใช้ notification_channels แบบใหม่ก่อน
+        notification_channels = current_config.get("notification_channels", [])
+        if notification_channels:
+            for channel_id in notification_channels:
+                text_channel = self.bot.get_channel(int(channel_id))
+                if text_channel and text_channel.permissions_for(guild.me).send_messages:
+                    return text_channel
+        
+        # รองรับรูปแบบเก่าเพื่อความเข้ากันได้
         if "notification_channel" in current_config:
             text_channel = self.bot.get_channel(int(current_config["notification_channel"]))
             if text_channel and text_channel.permissions_for(guild.me).send_messages:

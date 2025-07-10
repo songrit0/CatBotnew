@@ -4,7 +4,11 @@ Bot Commands - คำสั่งต่างๆ ของบอท
 import discord
 from discord.ext import commands
 from datetime import datetime
-from config_manager import load_config, is_special_channel
+from config_manager import (
+    load_config, is_special_channel,
+    add_command_channel, remove_command_channel,
+    add_notification_channel, remove_notification_channel
+)
 from ui_components import VoiceChannelManagerView
 
 class BotCommands(commands.Cog):
@@ -623,6 +627,127 @@ class BotCommands(commands.Cog):
         
         view = MusicPlayerView(self.bot.music_manager, ctx.guild.id)
         await ctx.send(embed=embed, view=view)
+
+    @commands.command(name='add_command_channel')
+    @commands.has_permissions(manage_channels=True)
+    async def add_command_channel_cmd(self, ctx, channel: discord.TextChannel = None):
+        """เพิ่มห้องสำหรับใช้คำสั่งบอท"""
+        if channel is None:
+            channel = ctx.channel
+        
+        success = add_command_channel(channel.id)
+        if success:
+            await ctx.send(f"✅ เพิ่มห้อง {channel.mention} เป็น command channel สำเร็จ")
+        else:
+            await ctx.send(f"❌ ไม่สามารถเพิ่มห้อง {channel.mention} เป็น command channel ได้")
+    
+    @commands.command(name='remove_command_channel')
+    @commands.has_permissions(manage_channels=True)
+    async def remove_command_channel_cmd(self, ctx, channel: discord.TextChannel = None):
+        """ลบห้องออกจาก command channel"""
+        if channel is None:
+            channel = ctx.channel
+        
+        success = remove_command_channel(channel.id)
+        if success:
+            await ctx.send(f"✅ ลบห้อง {channel.mention} ออกจาก command channel สำเร็จ")
+        else:
+            await ctx.send(f"❌ ไม่สามารถลบห้อง {channel.mention} ออกจาก command channel ได้")
+    
+    @commands.command(name='add_notification_channel')
+    @commands.has_permissions(manage_channels=True)
+    async def add_notification_channel_cmd(self, ctx, channel: discord.TextChannel = None):
+        """เพิ่มห้องสำหรับส่งการแจ้งเตือน"""
+        if channel is None:
+            channel = ctx.channel
+        
+        success = add_notification_channel(channel.id)
+        if success:
+            await ctx.send(f"✅ เพิ่มห้อง {channel.mention} เป็น notification channel สำเร็จ")
+        else:
+            await ctx.send(f"❌ ไม่สามารถเพิ่มห้อง {channel.mention} เป็น notification channel ได้")
+    
+    @commands.command(name='remove_notification_channel')
+    @commands.has_permissions(manage_channels=True)
+    async def remove_notification_channel_cmd(self, ctx, channel: discord.TextChannel = None):
+        """ลบห้องออกจาก notification channel"""
+        if channel is None:
+            channel = ctx.channel
+        
+        success = remove_notification_channel(channel.id)
+        if success:
+            await ctx.send(f"✅ ลบห้อง {channel.mention} ออกจาก notification channel สำเร็จ")
+        else:
+            await ctx.send(f"❌ ไม่สามารถลบห้อง {channel.mention} ออกจาก notification channel ได้")
+    
+    @commands.command(name='list_channels')
+    async def list_channels_cmd(self, ctx):
+        """แสดงรายการ command channels และ notification channels"""
+        config = load_config()
+        
+        embed = discord.Embed(
+            title="📋 รายการห้องที่ตั้งค่าไว้",
+            color=discord.Color.blue()
+        )
+        
+        # Command Channels
+        command_channels = config.get("command_channels", [])
+        if command_channels:
+            channel_mentions = []
+            for channel_id in command_channels:
+                channel = self.bot.get_channel(int(channel_id))
+                if channel:
+                    channel_mentions.append(channel.mention)
+                else:
+                    channel_mentions.append(f"🚫 ไม่พบห้อง (ID: {channel_id})")
+            
+            embed.add_field(
+                name="🤖 Command Channels",
+                value="\n".join(channel_mentions) if channel_mentions else "ไม่มีห้องที่ตั้งค่า",
+                inline=False
+            )
+        else:
+            # รองรับรูปแบบเก่า
+            command_channel_id = config.get("command_channel")
+            if command_channel_id:
+                channel = self.bot.get_channel(int(command_channel_id))
+                if channel:
+                    embed.add_field(
+                        name="🤖 Command Channel (รูปแบบเก่า)",
+                        value=channel.mention,
+                        inline=False
+                    )
+        
+        # Notification Channels
+        notification_channels = config.get("notification_channels", [])
+        if notification_channels:
+            channel_mentions = []
+            for channel_id in notification_channels:
+                channel = self.bot.get_channel(int(channel_id))
+                if channel:
+                    channel_mentions.append(channel.mention)
+                else:
+                    channel_mentions.append(f"🚫 ไม่พบห้อง (ID: {channel_id})")
+            
+            embed.add_field(
+                name="📢 Notification Channels",
+                value="\n".join(channel_mentions) if channel_mentions else "ไม่มีห้องที่ตั้งค่า",
+                inline=False
+            )
+        else:
+            # รองรับรูปแบบเก่า
+            notification_channel_id = config.get("notification_channel")
+            if notification_channel_id:
+                channel = self.bot.get_channel(int(notification_channel_id))
+                if channel:
+                    embed.add_field(
+                        name="📢 Notification Channel (รูปแบบเก่า)",
+                        value=channel.mention,
+                        inline=False
+                    )
+        
+        embed.set_footer(text=f"ผู้ใช้: {ctx.author.display_name}")
+        await ctx.send(embed=embed)
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
