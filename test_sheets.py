@@ -105,7 +105,7 @@ def main():
     print("=" * 60)
     
     # ตรวจสอบไฟล์ที่จำเป็น
-    required_files = ['.env', 'credentials.json', 'config.json']
+    required_files = ['.env', 'config.json']
     missing_files = []
     
     for file in required_files:

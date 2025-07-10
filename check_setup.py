@@ -67,12 +67,26 @@ def check_google_sheets():
     print(f"✅ GOOGLE_SHEETS_ID: {sheets_id}")
     print(f"✅ GOOGLE_SHEET_NAME: {sheet_name}")
     
-    # ตรวจสอบไฟล์ credentials
-    if not os.path.exists('credentials.json'):
-        print("❌ ไม่พบไฟล์ credentials.json")
+    # ตรวจสอบข้อมูล Google Service Account ใน .env
+    required_google_vars = [
+        'GOOGLE_SERVICE_ACCOUNT_TYPE',
+        'GOOGLE_PROJECT_ID',
+        'GOOGLE_PRIVATE_KEY_ID',
+        'GOOGLE_PRIVATE_KEY',
+        'GOOGLE_CLIENT_EMAIL',
+        'GOOGLE_CLIENT_ID'
+    ]
+    
+    missing_google_vars = []
+    for var in required_google_vars:
+        if not os.getenv(var):
+            missing_google_vars.append(var)
+    
+    if missing_google_vars:
+        print(f"❌ ไม่พบตัวแปรสำคัญใน .env: {', '.join(missing_google_vars)}")
         return False
     
-    print("✅ พบไฟล์ credentials.json")
+    print("✅ พบข้อมูล Google Service Account ครบถ้วนใน .env")
     
     # ทดสอบการเชื่อมต่อ
     try:
@@ -94,7 +108,6 @@ def check_files():
     
     required_files = [
         '.env',
-        'credentials.json',
         'main.py',
         'config_manager.py',
         'sheets_manager.py',

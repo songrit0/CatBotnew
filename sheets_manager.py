@@ -13,7 +13,6 @@ load_dotenv()
 
 class SheetsManager:
     def __init__(self):
-        self.credentials_file = 'credentials.json'
         self.sheets_id = os.getenv('GOOGLE_SHEETS_ID')
         self.sheet_name = os.getenv('GOOGLE_SHEET_NAME', 'Cat_bot_Spreadsheets')
         self.client = None
@@ -21,6 +20,28 @@ class SheetsManager:
         self.config_cache = None  # Cache สำหรับ config
         self.cache_timestamp = None
         self._initialize()
+    
+    def _get_credentials_from_env(self):
+        """สร้าง credentials จาก environment variables"""
+        # แก้ไข private key ให้มี newline ที่ถูกต้อง
+        private_key = os.getenv('GOOGLE_PRIVATE_KEY', '')
+        if private_key and '\\n' in private_key:
+            private_key = private_key.replace('\\n', '\n')
+        
+        credentials_data = {
+            "type": os.getenv('GOOGLE_SERVICE_ACCOUNT_TYPE'),
+            "project_id": os.getenv('GOOGLE_PROJECT_ID'),
+            "private_key_id": os.getenv('GOOGLE_PRIVATE_KEY_ID'),
+            "private_key": private_key,
+            "client_email": os.getenv('GOOGLE_CLIENT_EMAIL'),
+            "client_id": os.getenv('GOOGLE_CLIENT_ID'),
+            "auth_uri": os.getenv('GOOGLE_AUTH_URI'),
+            "token_uri": os.getenv('GOOGLE_TOKEN_URI'),
+            "auth_provider_x509_cert_url": os.getenv('GOOGLE_AUTH_PROVIDER_X509_CERT_URL'),
+            "client_x509_cert_url": os.getenv('GOOGLE_CLIENT_X509_CERT_URL'),
+            "universe_domain": os.getenv('GOOGLE_UNIVERSE_DOMAIN')
+        }
+        return credentials_data
     
     def _initialize(self):
         """เริ่มต้นการเชื่อมต่อกับ Google Sheets"""
@@ -31,9 +52,16 @@ class SheetsManager:
                 'https://www.googleapis.com/auth/drive'
             ]
             
-            # โหลด credentials จาก service account
-            creds = Credentials.from_service_account_file(
-                self.credentials_file, 
+            # โหลด credentials จาก environment variables
+            credentials_data = self._get_credentials_from_env()
+            
+            # ตรวจสอบว่าข้อมูล credentials ครบหรือไม่
+            if not all(credentials_data.values()):
+                raise ValueError("ข้อมูล Google Service Account ไม่ครบถ้วนใน .env file")
+            
+            # สร้าง credentials
+            creds = Credentials.from_service_account_info(
+                credentials_data, 
                 scopes=scope
             )
             
