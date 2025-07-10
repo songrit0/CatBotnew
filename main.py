@@ -10,7 +10,7 @@ from aiohttp import web
 from dotenv import load_dotenv
 
 # Import modules
-from config_manager import load_config
+from config_manager import load_config, migrate_from_json, refresh_config_cache
 from voice_manager import VoiceChannelManager
 from queue_processor import QueueProcessor
 from commands import setup as setup_commands
@@ -41,6 +41,20 @@ class CatBot(commands.Bot):
     async def setup_hook(self):
         """ตั้งค่าเริ่มต้นเมื่อบอทเริ่มทำงาน"""
         print("🔧 กำลังตั้งค่าระบบ...")
+        
+        # ย้ายข้อมูลจาก config.json ไปยัง Google Sheets (ถ้ามี)
+        print("📊 กำลังตรวจสอบและย้ายข้อมูลไปยัง Google Sheets...")
+        try:
+            migrate_success = migrate_from_json()
+            if migrate_success:
+                print("✅ ระบบพร้อมใช้งาน Google Sheets เป็นแหล่งเก็บข้อมูลหลัก")
+            else:
+                print("⚠️ อาจมีปัญหาในการย้ายข้อมูล")
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการย้ายข้อมูล: {e}")
+        
+        # รีเฟรชข้อมูลจาก Google Sheets
+        refresh_config_cache()
         
         # โหลด Cogs
         await setup_commands(self, self.voice_manager)

@@ -9,6 +9,10 @@
     "1391673586346885180": {
       "empty_name": "Live offline",
       "occupied_name": "Live online"
+    },
+    "1234567890123456789": {
+      "empty_name": "ห้องทดสอบว่าง",
+      "occupied_name": "ห้องทดสอบไม่ว่าง"
     }
   },
   "music_settings": {
