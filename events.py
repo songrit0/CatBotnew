@@ -29,6 +29,99 @@ class BotEvents(commands.Cog):
             except Exception as e:
                 print(f"[Log Error] {e}")
     
+    async def get_voice_rankings(self):
+        """ส่งอันดับเวลารวมที่ออนไลน์ในห้องเสียงไปยัง channel id 1397197236605161482"""
+        import discord
+        from collections import defaultdict
+        try:
+            spreadsheet = self.sheets.client.open_by_key(self.sheets.sheets_id)
+            ws = spreadsheet.worksheet('VoiceTime')
+            all_rows = ws.get_all_values()
+            headers = all_rows[0] if all_rows else []
+            if not headers or 'User ID' not in headers or 'Total Duration (sec)' not in headers or 'Channel ID' not in headers:
+                print("[Ranking] ไม่พบ header ที่ต้องการใน VoiceTime")
+                return
+            user_id_idx = headers.index('User ID')
+            channel_id_idx = headers.index('Channel ID')
+            total_idx = headers.index('Total Duration (sec)')
+            name_map = {}
+            # สร้าง mapping user_id -> name จาก member cache
+            for guild in self.bot.guilds:
+                for member in guild.members:
+                    name_map[str(member.id)] = member.display_name
+            channel_map = {}
+            for guild in self.bot.guilds:
+                for channel in guild.voice_channels:
+                    channel_map[str(channel.id)] = channel.name
+            # รวมเวลาต่อ user/channel
+            ranking = defaultdict(lambda: {'total': 0, 'channel_id': '', 'user_id': ''})
+            for row in all_rows[1:]:
+                if len(row) > max(user_id_idx, channel_id_idx, total_idx):
+                    user_id = row[user_id_idx]
+                    channel_id = row[channel_id_idx]
+                    try:
+                        total = float(row[total_idx])
+                    except Exception:
+                        total = 0
+                    key = (user_id, channel_id)
+                    ranking[key]['total'] += total
+                    ranking[key]['channel_id'] = channel_id
+                    ranking[key]['user_id'] = user_id
+            # จัดอันดับ
+            sorted_rank = sorted(ranking.values(), key=lambda x: x['total'], reverse=True)
+            lines = ["RANK | Total Duration (sec) | NAME"]
+            for i, entry in enumerate(sorted_rank, 1):
+                channelname = channel_map.get(entry['channel_id'], entry['channel_id'])
+                # NAME ต้องเป็น display_name ของ user
+                name = name_map.get(str(entry['user_id']))
+                if not name:
+                    # หากไม่พบใน name_map ให้ลองดึงจาก guilds
+                    user_id_int = None
+                    try:
+                        user_id_int = int(entry['user_id'])
+                    except Exception:
+                        pass
+                    name = None
+                    if user_id_int:
+                        for guild in self.bot.guilds:
+                            member = guild.get_member(user_id_int)
+                            if member:
+                                name = member.display_name
+                                break
+                    if not name and user_id_int:
+                        try:
+                            user_obj = await self.bot.fetch_user(user_id_int)
+                            name = user_obj.name
+                        except Exception:
+                            name = "Unknown"
+                    if not name:
+                        name = "Unknown"
+                minutes = int(entry['total'] // 60)
+                seconds = int(entry['total'] % 60)
+                lines.append(f"{i:>2} | {minutes} นาที {seconds} วินาที | {name}")
+            msg = "\n".join(lines)
+            channel = self.bot.get_channel(1397197236605161482)
+            if channel:
+                # ลบข้อความ ranking เดิม
+                try:
+                    async for message in channel.history(limit=20):
+                        if message.author == self.bot.user and "RANK | Total Duration (sec) | NAME" in message.content:
+                            await message.delete()
+                except Exception as e:
+                    print(f"[Ranking] ลบข้อความเดิมไม่สำเร็จ: {e}")
+                await channel.send(f"```\n{msg}\n```")
+            else:
+                print("[Ranking] ไม่พบ channel id 1397197236605161482")
+        except Exception as e:
+            print(f"[Ranking Error] {e}")
+
+    async def rankings_background_task(self):
+        """background task ส่งอันดับทุก 60 นาที"""
+        import asyncio
+        while True:
+            await self.get_voice_rankings()
+            await asyncio.sleep(3)
+
     @commands.Cog.listener()
     async def on_ready(self):
         """เมื่อบอทพร้อมใช้งาน"""
@@ -45,6 +138,8 @@ class BotEvents(commands.Cog):
         await self._check_all_voice_channels(config)
         
         print("🤖 บอทพร้อมใช้งาน!")
+        import asyncio
+        self.bot.loop.create_task(self.rankings_background_task())
     
     async def _check_all_voice_channels(self, config):
         """ตรวจสอบห้องเสียงทั้งหมดเมื่อเริ่มต้น"""
@@ -105,7 +200,9 @@ class BotEvents(commands.Cog):
         
         # ตรวจสอบและอัพเดตห้องเสียงที่เกี่ยวข้อง
         await self._check_channels(channels_to_check, member.guild)
-    
+        # เรียก rankings ทุกครั้งที่มีการเปลี่ยนแปลง
+        await self.get_voice_rankings()
+
     async def _check_channels(self, channels_to_check, guild):
         """ตรวจสอบและอัพเดตห้องเสียงที่เกี่ยวข้อง"""
         for channel in channels_to_check:
