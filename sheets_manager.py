@@ -14,6 +14,64 @@ import socket
 load_dotenv()
 
 class SheetsManager:
+    def update_or_append_voice_time(self, user_id, channel_id, join_time, leave_time, duration):
+        """บันทึกข้อมูลเวลาเข้า/ออกห้องเสียงใน Google Sheets (sheet: VoiceTime) โดยบวก Total Duration ถ้ามี user_id อยู่แล้ว"""
+        from datetime import datetime
+        sheet_title = 'VoiceTime'
+        try:
+            spreadsheet = self.client.open_by_key(self.sheets_id)
+            try:
+                ws = spreadsheet.worksheet(sheet_title)
+            except gspread.WorksheetNotFound:
+                print(f"[Sheets Debug] ไม่พบ worksheet '{sheet_title}' กำลังสร้างใหม่...")
+                ws = spreadsheet.add_worksheet(title=sheet_title, rows=1000, cols=10)
+            # ตรวจสอบ header
+            headers = ['User ID', 'Channel ID', 'Join Time', 'Leave Time', 'Duration (sec)', 'Total Duration (sec)', 'Last Updated']
+            first_row = ws.row_values(1)
+            if len(first_row) < len(headers) or first_row != headers:
+                print(f"[Sheets Debug] กำลังตั้งค่า header VoiceTime ใหม่...")
+                ws.update('A1:G1', [headers])
+        except Exception as e:
+            print(f"[Sheets Error] ไม่สามารถเปิด worksheet VoiceTime: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+
+        try:
+            # อ่านข้อมูลทั้งหมด (เฉพาะ user_id และ Total Duration)
+            all_rows = ws.get_all_values()
+            headers = ['User ID', 'Channel ID', 'Join Time', 'Leave Time', 'Duration (sec)', 'Total Duration (sec)', 'Last Updated']
+            user_id_col = headers.index('User ID')
+            total_duration_col = headers.index('Total Duration (sec)')
+            found_row = None
+            for idx, row in enumerate(all_rows[1:], start=2):  # ข้าม header, index เริ่มที่ 2
+                if len(row) > user_id_col and row[user_id_col] == str(user_id):
+                    found_row = (idx, row)
+                    break
+
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            if found_row:
+                row_idx, row = found_row
+                # ดึง Total Duration เดิม ถ้าไม่มีให้ใช้ 0
+                try:
+                    old_total = float(row[total_duration_col]) if len(row) > total_duration_col and row[total_duration_col] else 0.0
+                except Exception:
+                    old_total = 0.0
+                new_total = old_total + float(duration)
+                # อัปเดตแถวเดิม
+                update_data = [str(user_id), str(channel_id), join_time, leave_time, duration, new_total, now_str]
+                cell_range = f"A{row_idx}:G{row_idx}"
+                ws.update(cell_range, [update_data])
+                print(f"[Sheets Debug] อัปเดต Total Duration ของ user_id {user_id} สำเร็จ: {update_data}")
+            else:
+                # เพิ่มแถวใหม่
+                row_data = [str(user_id), str(channel_id), join_time, leave_time, duration, duration, now_str]
+                ws.append_row(row_data)
+                print(f"[Sheets Debug] เพิ่มข้อมูลใหม่ใน VoiceTime สำเร็จ: {row_data}")
+        except Exception as e:
+            print(f"[Sheets Error] เพิ่มหรืออัปเดตข้อมูล VoiceTime ไม่สำเร็จ: {e}")
+            import traceback
+            traceback.print_exc()
     def __init__(self):
         self.sheets_id = os.getenv('GOOGLE_SHEETS_ID')
         self.sheet_name = os.getenv('GOOGLE_SHEET_NAME', 'Cat_bot_Spreadsheets')

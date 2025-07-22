@@ -12,6 +12,22 @@ class BotEvents(commands.Cog):
         self.bot = bot
         self.voice_manager = voice_manager
         self.queue_processor = queue_processor
+        self.voice_times = {}  # {(user_id, channel_id): {'join': datetime, 'leave': datetime}}
+        from sheets_manager import SheetsManager
+        self.sheets = SheetsManager()
+
+    async def _send_log(self, message, guild=None):
+        """ส่ง log ไปยัง channel id 1397190290284089537 และ print"""
+        print(message)
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_channel = self.bot.get_channel(1397190290284089537)
+        # ```log_channel```
+        if log_channel:
+            try:
+                await log_channel.send(f"```[{timestamp}] \n{message}```")
+            except Exception as e:
+                print(f"[Log Error] {e}")
     
     @commands.Cog.listener()
     async def on_ready(self):
@@ -53,9 +69,30 @@ class BotEvents(commands.Cog):
         if before.channel != after.channel:
             if before.channel:
                 print(f"   ออกจากห้อง: {before.channel.name}")
+                await self._send_log(f"{member.display_name} ออกจากห้อง: {before.channel.name}", member.guild)
+                # --- TIME TRACKING ---
+                import datetime
+                key = (member.id, before.channel.id)
+                now = datetime.datetime.now()
+                if key in self.voice_times and 'join' in self.voice_times[key]:
+                    join_time = self.voice_times[key]['join']
+                    duration = (now - join_time).total_seconds()
+                    # Save to Google Sheets
+                    await self._save_voice_time(member.id, before.channel.id, join_time, now, duration)
+                    self.voice_times[key]['leave'] = now
+                    del self.voice_times[key]  # clear after save
+                else:
+                    # No join time, just log leave
+                    await self._save_voice_time(member.id, before.channel.id, None, now, 0)
             if after.channel:
                 print(f"   เข้าห้อง: {after.channel.name}")
-        
+                await self._send_log(f"{member.display_name} เข้าห้อง: {after.channel.name}", member.guild)
+                # --- TIME TRACKING ---
+                import datetime
+                key = (member.id, after.channel.id)
+                now = datetime.datetime.now()
+                self.voice_times[key] = {'join': now}
+
         channels_to_check = set()
         
         # เพิ่มห้องที่ผู้ใช้เข้าไป
@@ -79,6 +116,20 @@ class BotEvents(commands.Cog):
                 await self.voice_manager.update_voice_channel_name(channel, guild)
             else:
                 print(f"ℹ️ ห้อง {channel.name} ไม่ได้อยู่ในการตั้งค่า")
+
+    async def _save_voice_time(self, user_id, channel_id, join_time, leave_time, duration):
+        """บันทึกข้อมูลเวลาเข้า/ออกห้องเสียงลง Google Sheets"""
+        import datetime
+        import asyncio
+        join_str = join_time.strftime('%Y-%m-%d %H:%M:%S') if join_time else ''
+        leave_str = leave_time.strftime('%Y-%m-%d %H:%M:%S') if leave_time else ''
+        await self._send_log(f"บันทึกเวลา user:{user_id} channel:{channel_id} join:{join_str} leave:{leave_str} duration:{duration}s", guild=None)
+        loop = asyncio.get_event_loop()
+        try:
+            await loop.run_in_executor(None, self.sheets.update_or_append_voice_time, user_id, channel_id, join_str, leave_str, duration)
+            print(f"[Sheets] บันทึกเวลา user:{user_id} channel:{channel_id} duration:{duration}s")
+        except Exception as e:
+            print(f"[Sheets Error] {e}")
 
 async def setup(bot, voice_manager, queue_processor):
     """ตั้งค่า Cog"""
