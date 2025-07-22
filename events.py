@@ -120,7 +120,7 @@ class BotEvents(commands.Cog):
         import asyncio
         while True:
             await self.get_voice_rankings()
-            await asyncio.sleep(3)
+            await asyncio.sleep(3600)
 
     @commands.Cog.listener()
     async def on_ready(self):
