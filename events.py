@@ -99,7 +99,13 @@ class BotEvents(commands.Cog):
                 minutes = int(entry['total'] // 60)
                 seconds = int(entry['total'] % 60)
                 lines.append(f"{i:>2} | {minutes} นาที {seconds} วินาที | {name}")
+              
             msg = "\n".join(lines)
+            import datetime
+            now_dt = datetime.datetime.now()
+            now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+            now_ts = int(now_dt.timestamp())
+            msg += f"\n[อัพเดตล่าสุด: {now_str} ]\n"
             channel = self.bot.get_channel(1397197236605161482)
             if channel:
                 # ลบข้อความ ranking เดิม
@@ -109,7 +115,7 @@ class BotEvents(commands.Cog):
                             await message.delete()
                 except Exception as e:
                     print(f"[Ranking] ลบข้อความเดิมไม่สำเร็จ: {e}")
-                await channel.send(f"```\n{msg}\n```")
+                await channel.send(f"```\n{msg}\n``` \n[อัพเดตล่าสุด:(<t:{now_ts}:R>)]")
             else:
                 print("[Ranking] ไม่พบ channel id 1397197236605161482")
         except Exception as e:
