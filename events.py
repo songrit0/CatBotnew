@@ -96,9 +96,11 @@ class BotEvents(commands.Cog):
                             name = "Unknown"
                     if not name:
                         name = "Unknown"
-                minutes = int(entry['total'] // 60)
-                seconds = int(entry['total'] % 60)
-                lines.append(f"{i:>2} | {minutes} นาที {seconds} วินาที | {name}")
+                total_seconds = int(entry['total'])
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                lines.append(f"{i:>2} | {hours} ชั่วโมง {minutes} นาที {seconds} วินาที | {name}")
               
             msg = "\n".join(lines)
             import datetime
