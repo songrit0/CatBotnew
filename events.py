@@ -100,7 +100,7 @@ class BotEvents(commands.Cog):
                 hours = total_seconds // 3600
                 minutes = (total_seconds % 3600) // 60
                 seconds = total_seconds % 60
-                lines.append(f"{i:>2} | {hours} ชั่วโมง {minutes} นาที {seconds} วินาที | {name}")
+                lines.append(f"{i:>2} | {hours} Hours| {name}")
               
             msg = "\n".join(lines)
             import datetime
