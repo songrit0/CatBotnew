@@ -101,7 +101,7 @@ class BotEvents(commands.Cog):
                 minutes = (total_seconds % 3600) // 60
                 seconds = total_seconds % 60
                 lines.append(f"{i:>2} | {hours} Hours| {name}")
-              
+
             msg = "\n".join(lines)
             import datetime
             now_dt = datetime.datetime.now()
@@ -210,6 +210,18 @@ class BotEvents(commands.Cog):
         await self._check_channels(channels_to_check, member.guild)
         # เรียก rankings ทุกครั้งที่มีการเปลี่ยนแปลง
         await self.get_voice_rankings()
+
+        # --- UPDATE BOT ACTIVITY: ห้องมี X คน ---
+        await self._update_voice_activity_status(member.guild)
+
+    async def _update_voice_activity_status(self, guild):
+   
+        total = 0
+        for channel in guild.voice_channels:
+            # นับเฉพาะสมาชิกที่ไม่ใช่บอท
+            total += sum(1 for member in channel.members if not member.bot)
+        activity = discord.Activity(type=discord.ActivityType.watching, name=f"มีคนเหงา {total} คน")
+        await self.bot.change_presence(activity=activity)
 
     async def _check_channels(self, channels_to_check, guild):
         """ตรวจสอบและอัพเดตห้องเสียงที่เกี่ยวข้อง"""
